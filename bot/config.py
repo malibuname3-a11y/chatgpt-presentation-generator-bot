@@ -16,8 +16,7 @@ config_env = dotenv.dotenv_values(config_dir / "config.env")
 
 # config parameters
 telegram_token = config_yaml["telegram_token"]
-openai_api_key = config_yaml["openai_api_key"]
-provider_token = config_yaml["provider_token"]
+gemini_api_key = config_yaml["gemini_api_key"]
 allowed_telegram_usernames = config_yaml["allowed_telegram_usernames"]
 mongodb_uri = f"mongodb://mongo:{config_env['MONGODB_PORT']}"
 
