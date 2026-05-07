@@ -1,20 +1,34 @@
 FROM python:3.11-slim
 
-ENV PYTHONFAULTHANDLER=1
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONHASHSEED=random
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PIP_NO_CACHE_DIR=off
-ENV PIP_DISABLE_PIP_VERSION_CHECK=on
-ENV PIP_DEFAULT_TIMEOUT=100
+# To'g'ri ENV formatlari
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1 \
+    PYTHONHASHSEED=random \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100
 
-RUN apt-get update
-RUN apt-get install -y python3 python3-pip python-dev-is-python3 build-essential python3-venv ffmpeg
+# Tizim paketlarini o'rnatish
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-dev \
+    build-essential \
+    python3-venv \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
+# Ishchi papka
 RUN mkdir -p /code
-ADD . /code
 WORKDIR /code
 
-RUN pip3 install -r requirements.txt
+# Requirements ni o'rnatish
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
 
-CMD ["bash"]
+# Kodni copy qilish
+COPY . .
+
+# Botni ishga tushirish
+CMD ["python", "bot.py"]
