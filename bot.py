@@ -1,5 +1,5 @@
 import os
-from moviepy.editor import VideoFileClip
+from moviepy.editor import VideoFileClip, concatenate_videoclips
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -9,7 +9,7 @@ from telegram.ext import (
     filters,
 )
 
-# 🔥 TOKEN
+# 🔥 TOKEN env dan
 TOKEN = os.getenv("BOT_TOKEN")
 
 if not TOKEN:
@@ -30,7 +30,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# video qabul qilish
+# video handler
 async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
 
@@ -43,8 +43,7 @@ async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_state[user_id] = input_path
 
     await update.message.reply_text(
-        "⏱ Endi start va end yozing\n"
-        "Masalan: 5 12"
+        "⏱ Start va end yozing\nMasalan: 5 12"
     )
 
 
@@ -78,11 +77,12 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ noto‘g‘ri vaqt")
             return
 
-        # 🎬 kesish
+        # 🎬 0–start va end–oxirini kesish
         part1 = clip.subclip(0, start_time)
         part2 = clip.subclip(end_time, clip.duration)
 
-        final_clip = part1.concatenate_videoclips([part2])
+        # ✔ TO‘G‘RI USUL
+        final_clip = concatenate_videoclips([part1, part2])
 
         final_clip.write_videofile(
             output_path,
@@ -98,7 +98,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     except Exception as e:
-        await update.message.reply_text("❌ Xatolik yuz berdi")
+        await update.message.reply_text("❌ Video ishlov berishda xatolik")
         print(e)
 
 
