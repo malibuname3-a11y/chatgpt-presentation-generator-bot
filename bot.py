@@ -1,5 +1,5 @@
 import os
-from moviepy.video.io.VideoFileClip import VideoFileClip
+from moviepy.editor import VideoFileClip
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -9,14 +9,16 @@ from telegram.ext import (
     filters,
 )
 
+# 🔥 TOKEN
 TOKEN = os.getenv("BOT_TOKEN")
 
 if not TOKEN:
     raise Exception("❌ BOT_TOKEN topilmadi")
 
+# folder
 os.makedirs("videos", exist_ok=True)
 
-# user state (start/end saqlash uchun)
+# user state
 user_state = {}
 
 
@@ -24,22 +26,21 @@ user_state = {}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📹 Video yuboring\n"
-        "Keyin start va end vaqtni yuborasiz (masalan: 5 12)"
+        "Keyin start va end yozing (masalan: 5 12)"
     )
 
 
-# video handler
+# video qabul qilish
 async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
 
     video = update.message.video
-
     input_path = f"videos/{user_id}_input.mp4"
 
     file = await context.bot.get_file(video.file_id)
     await file.download_to_drive(input_path)
 
-    user_state[user_id] = {"path": input_path}
+    user_state[user_id] = input_path
 
     await update.message.reply_text(
         "⏱ Endi start va end yozing\n"
@@ -47,28 +48,28 @@ async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# text handler (start/end olish)
+# text handler
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     text = update.message.text
 
     if user_id not in user_state:
-        await update.message.reply_text("Avval video yuboring 📹")
+        await update.message.reply_text("❌ Avval video yuboring")
         return
 
     try:
         start_time, end_time = map(float, text.split())
     except:
-        await update.message.reply_text("Format: start end (masalan: 5 12)")
+        await update.message.reply_text("❌ Format: 5 12")
         return
 
-    path = user_state[user_id]["path"]
+    input_path = user_state[user_id]
     output_path = f"videos/{user_id}_output.mp4"
 
     try:
-        clip = VideoFileClip(path)
+        clip = VideoFileClip(input_path)
 
-        # xatolikdan himoya
+        # safety check
         if start_time < 0:
             start_time = 0
         if end_time > clip.duration:
@@ -101,7 +102,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(e)
 
 
-# bot app
+# app
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
