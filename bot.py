@@ -1,38 +1,52 @@
 import os
+import shutil
 import subprocess
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
-    MessageHandler,
     CommandHandler,
+    MessageHandler,
     ContextTypes,
     filters,
 )
 
-# 🔥 TOKEN avtomatik env dan olinadi
+# 🔥 TOKEN env dan olinadi
 TOKEN = os.getenv("BOT_TOKEN")
 
 if not TOKEN:
-    raise Exception("❌ BOT_TOKEN topilmadi! Environment variables ga qo‘shing.")
+    raise Exception("❌ BOT_TOKEN topilmadi (environment variables ni tekshiring)")
 
+# FFmpeg path (ENG STABIL USUL)
+FFMPEG = shutil.which("ffmpeg")
+
+if not FFMPEG:
+    raise Exception("❌ FFmpeg topilmadi! Serverga o‘rnatilmagan")
+
+# папка
 os.makedirs("videos", exist_ok=True)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📹 Video yuboring ")
 
+# /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "📹 Video yuboring\n"
+        
+    )
+
+
+# video handler
 async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     video = update.message.video
-
-    file = await context.bot.get_file(video.file_id)
 
     input_path = "videos/input.mp4"
     output_path = "videos/output.mp4"
 
+    file = await context.bot.get_file(video.file_id)
     await file.download_to_drive(input_path)
 
-    # 6–8 sekundni olib tashlash
+    # 🎬 6–8 sekundni olib tashlash
     cmd = [
-        "ffmpeg",
+        FFMPEG,
         "-y",
         "-i", input_path,
         "-filter_complex",
@@ -44,15 +58,25 @@ async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         output_path
     ]
 
-    subprocess.run(cmd)
+    try:
+        subprocess.run(cmd, check=True)
 
-    await update.message.reply_video(video=open(output_path, "rb"))
+        await update.message.reply_video(
+            video=open(output_path, "rb"),
+            supports_streaming=True
+        )
 
+    except subprocess.CalledProcessError as e:
+        await update.message.reply_text("❌ Video processing xatosi")
+        print(e)
+
+
+# app
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.VIDEO, video_handler))
 
-print("Bot ishlayapti...")
+print("🤖 Bot ishlayapti...")
 
 app.run_polling(drop_pending_updates=True)
