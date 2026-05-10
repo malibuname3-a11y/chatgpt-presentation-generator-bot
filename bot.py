@@ -1,4 +1,5 @@
 import os
+import time
 from moviepy.editor import VideoFileClip, concatenate_videoclips
 from telegram import Update
 from telegram.ext import (
@@ -9,16 +10,18 @@ from telegram.ext import (
     filters,
 )
 
-# 🔥 TOKEN env dan
+# 🔥 TOKEN
 TOKEN = os.getenv("BOT_TOKEN")
 
 if not TOKEN:
     raise Exception("❌ BOT_TOKEN topilmadi")
 
+# 🔥 Windows FFmpeg path (senda bor)
+os.environ["IMAGEIO_FFMPEG_EXE"] = r"C:\ffmpeg\bin\ffmpeg.exe"
+
 # folder
 os.makedirs("videos", exist_ok=True)
 
-# user state
 user_state = {}
 
 
@@ -26,11 +29,11 @@ user_state = {}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📹 Video yuboring\n"
-        "Keyin start va end yozing (masalan: 5 12)"
+        "Keyin start end yozing (masalan: 5 12)"
     )
 
 
-# video handler
+# video qabul qilish
 async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
 
@@ -39,6 +42,9 @@ async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     file = await context.bot.get_file(video.file_id)
     await file.download_to_drive(input_path)
+
+    # 🔥 MUHIM: file to‘liq yozilishini kutish
+    time.sleep(1)
 
     user_state[user_id] = input_path
 
@@ -66,9 +72,10 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     output_path = f"videos/{user_id}_output.mp4"
 
     try:
-        clip = VideoFileClip(input_path)
+        # 🔥 video ochish (safe mode)
+        clip = VideoFileClip(input_path, audio=True)
 
-        # safety check
+        # safety
         if start_time < 0:
             start_time = 0
         if end_time > clip.duration:
@@ -77,11 +84,10 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ noto‘g‘ri vaqt")
             return
 
-        # 🎬 0–start va end–oxirini kesish
+        # 🎬 kesish
         part1 = clip.subclip(0, start_time)
         part2 = clip.subclip(end_time, clip.duration)
 
-        # ✔ TO‘G‘RI USUL
         final_clip = concatenate_videoclips([part1, part2])
 
         final_clip.write_videofile(
@@ -98,8 +104,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     except Exception as e:
-        await update.message.reply_text("❌ Video ishlov berishda xatolik")
-        print(e)
+        await update.message.reply_text("❌ Video processing error")
+        print("ERROR:", e)
 
 
 # app
