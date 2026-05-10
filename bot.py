@@ -18,7 +18,7 @@ if not TOKEN:
 os.makedirs("videos", exist_ok=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📹 Video yuboring (6–8 sekund o‘chiraman)")
+    await update.message.reply_text("📹 Video yuboring ")
 
 async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     video = update.message.video
