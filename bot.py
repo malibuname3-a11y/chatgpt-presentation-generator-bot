@@ -1,6 +1,5 @@
 import os
-import time
-from moviepy.editor import VideoFileClip, concatenate_videoclips
+import subprocess
 from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -16,10 +15,12 @@ TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
     raise Exception("❌ BOT_TOKEN topilmadi")
 
-# 🔥 Windows FFmpeg path (senda bor)
-os.environ["IMAGEIO_FFMPEG_EXE"] = r"C:\ffmpeg\bin\ffmpeg.exe"
+# 🔥 FFmpeg path (Windows)
+FFMPEG = r"C:\ffmpeg\bin\ffmpeg.exe"
 
-# folder
+if not os.path.isfile(FFMPEG):
+    raise Exception("❌ FFmpeg topilmadi")
+
 os.makedirs("videos", exist_ok=True)
 
 user_state = {}
@@ -29,7 +30,8 @@ user_state = {}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📹 Video yuboring\n"
-        "Keyin start end yozing (masalan: 5 12)"
+        "Keyin start end yozing (masalan: 5 12)\n"
+        "Men o‘rtasini olib tashlayman"
     )
 
 
@@ -37,20 +39,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
 
-    video = update.message.video
     input_path = f"videos/{user_id}_input.mp4"
 
-    file = await context.bot.get_file(video.file_id)
+    file = await context.bot.get_file(update.message.video.file_id)
     await file.download_to_drive(input_path)
-
-    # 🔥 MUHIM: file to‘liq yozilishini kutish
-    time.sleep(1)
 
     user_state[user_id] = input_path
 
-    await update.message.reply_text(
-        "⏱ Start va end yozing\nMasalan: 5 12"
-    )
+    await update.message.reply_text("⏱ Start va end yozing (masalan: 5 12)")
 
 
 # text handler
@@ -72,31 +68,27 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     output_path = f"videos/{user_id}_output.mp4"
 
     try:
-        # 🔥 video ochish (safe mode)
-        clip = VideoFileClip(input_path, audio=True)
+        # 🔥 FAST FFmpeg (timeout yo‘q)
+        cmd = [
+            FFMPEG,
+            "-y",
+            "-i", input_path,
 
-        # safety
-        if start_time < 0:
-            start_time = 0
-        if end_time > clip.duration:
-            end_time = clip.duration
-        if start_time >= end_time:
-            await update.message.reply_text("❌ noto‘g‘ri vaqt")
-            return
+            "-filter_complex",
+            "[0:v]trim=0:{0},setpts=PTS-STARTPTS[v1];"
+            "[0:v]trim={1},setpts=PTS-STARTPTS[v2];"
+            "[v1][v2]concat=n=2:v=1:a=0[v]".format(start_time, end_time),
 
-        # 🎬 kesish
-        part1 = clip.subclip(0, start_time)
-        part2 = clip.subclip(end_time, clip.duration)
+            "-map", "[v]",
+            "-map", "0:a?",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-c:a", "aac",
 
-        final_clip = concatenate_videoclips([part1, part2])
+            output_path
+        ]
 
-        final_clip.write_videofile(
-            output_path,
-            codec="libx264",
-            audio_codec="aac",
-            verbose=False,
-            logger=None
-        )
+        subprocess.run(cmd, check=True)
 
         await update.message.reply_video(
             video=open(output_path, "rb"),
@@ -104,7 +96,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     except Exception as e:
-        await update.message.reply_text("❌ Video processing error")
+        await update.message.reply_text("❌ Video error")
         print("ERROR:", e)
 
 
