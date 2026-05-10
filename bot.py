@@ -1,5 +1,4 @@
 import os
-import shutil
 import subprocess
 from telegram import Update
 from telegram.ext import (
@@ -10,19 +9,20 @@ from telegram.ext import (
     filters,
 )
 
-# 🔥 TOKEN env dan olinadi
+# 🔥 TOKEN (environment variables dan)
 TOKEN = os.getenv("BOT_TOKEN")
 
 if not TOKEN:
-    raise Exception("❌ BOT_TOKEN topilmadi (environment variables ni tekshiring)")
+    raise Exception("❌ BOT_TOKEN topilmadi!")
 
-# FFmpeg path (ENG STABIL USUL)
-FFMPEG = shutil.which("ffmpeg")
+# 🔥 WINDOWS FFmpeg PATH (SENDA BOR)
+FFMPEG = r"C:\ffmpeg\bin\ffmpeg.exe"
 
-if not FFMPEG:
-    raise Exception("❌ FFmpeg topilmadi! Serverga o‘rnatilmagan")
+# tekshirish
+if not os.path.exists(FFMPEG):
+    raise Exception("❌ FFmpeg topilmadi: C:\\ffmpeg\\bin\\ffmpeg.exe")
 
-# папка
+# folder
 os.makedirs("videos", exist_ok=True)
 
 
@@ -66,8 +66,8 @@ async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             supports_streaming=True
         )
 
-    except subprocess.CalledProcessError as e:
-        await update.message.reply_text("❌ Video processing xatosi")
+    except Exception as e:
+        await update.message.reply_text("❌ Video processing xatolik")
         print(e)
 
 
