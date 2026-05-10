@@ -9,18 +9,18 @@ from telegram.ext import (
     filters,
 )
 
-# 🔥 TOKEN (environment variables dan)
+# 🔥 TOKEN env dan olinadi
 TOKEN = os.getenv("BOT_TOKEN")
 
 if not TOKEN:
-    raise Exception("❌ BOT_TOKEN topilmadi!")
+    raise Exception("❌ BOT_TOKEN topilmadi")
 
-# 🔥 WINDOWS FFmpeg PATH (SENDA BOR)
+# 🔥 WINDOWS FFmpeg (100% aniq path)
 FFMPEG = r"C:\ffmpeg\bin\ffmpeg.exe"
 
-# tekshirish
-if not os.path.exists(FFMPEG):
-    raise Exception("❌ FFmpeg topilmadi: C:\\ffmpeg\\bin\\ffmpeg.exe")
+# tekshiruv (to‘g‘ri usul)
+if not os.path.isfile(FFMPEG):
+    raise Exception(f"❌ FFmpeg topilmadi: {FFMPEG}")
 
 # folder
 os.makedirs("videos", exist_ok=True)
@@ -30,7 +30,7 @@ os.makedirs("videos", exist_ok=True)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📹 Video yuboring\n"
-        
+        "Men 6–8 sekundni olib tashlayman"
     )
 
 
@@ -67,7 +67,7 @@ async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     except Exception as e:
-        await update.message.reply_text("❌ Video processing xatolik")
+        await update.message.reply_text("❌ Video ishlov berishda xatolik")
         print(e)
 
 
