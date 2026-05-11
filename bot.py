@@ -56,8 +56,9 @@ def find_ffmpeg():
 
 # Conversation holatlari
 WAITING_VIDEO      = 1
-WAITING_CUT_START  = 2
-WAITING_CUT_END    = 3
+WAITING_MODE       = 2
+WAITING_START_TIME = 3
+WAITING_END_TIME   = 4
 
 user_data_store = {}
 
@@ -83,14 +84,8 @@ def fmt(seconds):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Video Kesish Bot\n\n"
-        "Bu bot siz ko'rsatgan oraliqni o'chirib, qolgan qismini yuboradi.\n\n"
-        "Qanday ishlaydi:\n"
-        "1. Video yuboring\n"
-        "2. O'chirish boshlanish vaqtini kiriting (masalan: 0:30)\n"
-        "3. O'chirish tugash vaqtini kiriting (masalan: 1:15)\n"
-        "4. Bot o'sha oraliqni olib tashlagan videoni yuboradi\n\n"
-        "Video yuborishni boshlang."
+        "Video Bot ga xush kelibsiz!\n\n"
+        "Video yuboring, keyin rejim tanlaysiz."
     )
     return WAITING_VIDEO
 
@@ -126,12 +121,17 @@ async def receive_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if duration:
             dur_text = "\nVideo davomiyligi: %s" % fmt(duration)
 
+        keyboard = [
+            [InlineKeyboardButton("✂️ Qirqib olish", callback_data="mode_trim")],
+            [InlineKeyboardButton("🗑 O'chirib tashlash", callback_data="mode_cut")],
+        ]
         await message.reply_text(
-            "Video yuklandi!%s\n\n"
-            "O'chirmoqchi bo'lgan qismning BOSHLANISH vaqtini kiriting:\n"
-            "Misol: 30  yoki  1:30  yoki  0:01:30" % dur_text
+            "Video yuklandi!%s\n\nQaysi rejimni tanlaysiz?\n\n"
+            "✂️ Qirqib olish — belgilangan qismni oladi\n"
+            "🗑 O'chirib tashlash — belgilangan qismni olib, qolganini yuboradi" % dur_text,
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        return WAITING_CUT_START
+        return WAITING_MODE
 
     except Exception as e:
         logger.error("Video yuklashda xato: %s", e)
@@ -139,60 +139,83 @@ async def receive_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return WAITING_VIDEO
 
 
-async def receive_cut_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def mode_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = update.effective_user.id
+
+    mode = query.data  # "mode_trim" yoki "mode_cut"
+    user_data_store[user_id]["mode"] = mode
+
+    if mode == "mode_trim":
+        await query.message.reply_text(
+            "✂️ Qirqib olish rejimi\n\n"
+            "Boshlanish vaqtini kiriting:\n"
+            "Misol: 30  yoki  1:30  yoki  0:01:30"
+        )
+    else:
+        await query.message.reply_text(
+            "🗑 O'chirib tashlash rejimi\n\n"
+            "O'chiriladigan qismning BOSHLANISH vaqtini kiriting:\n"
+            "Misol: 30  yoki  1:30  yoki  0:01:30"
+        )
+    return WAITING_START_TIME
+
+
+async def receive_start_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
-    cut_start = parse_time(text)
+    start_time = parse_time(text)
 
-    if cut_start is None or cut_start < 0:
+    if start_time is None or start_time < 0:
         await update.message.reply_text("Noto'g'ri vaqt! Misol: 30 yoki 1:30")
-        return WAITING_CUT_START
+        return WAITING_START_TIME
 
     data = user_data_store.get(user_id, {})
     duration = data.get("duration")
-
-    if duration and cut_start >= duration:
+    if duration and start_time >= duration:
         await update.message.reply_text(
             "Vaqt video davomiyligidan (%s) katta! Qayta kiriting." % fmt(duration)
         )
-        return WAITING_CUT_START
+        return WAITING_START_TIME
 
-    user_data_store[user_id]["cut_start"] = cut_start
+    user_data_store[user_id]["start_time"] = start_time
 
-    await update.message.reply_text(
-        "O'chirish boshlanishi: %s\n\n"
-        "O'chirmoqchi bo'lgan qismning TUGASH vaqtini kiriting:" % fmt(cut_start)
-    )
-    return WAITING_CUT_END
+    mode = data.get("mode")
+    if mode == "mode_trim":
+        await update.message.reply_text(
+            "Boshlanish: %s\n\nTugash vaqtini kiriting:" % fmt(start_time)
+        )
+    else:
+        await update.message.reply_text(
+            "O'chirish boshlanishi: %s\n\nO'chirish TUGASH vaqtini kiriting:" % fmt(start_time)
+        )
+    return WAITING_END_TIME
 
 
-async def receive_cut_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def receive_end_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
-    cut_end = parse_time(text)
+    end_time = parse_time(text)
     data = user_data_store.get(user_id, {})
-    cut_start = data.get("cut_start", 0)
+    start_time = data.get("start_time", 0)
     duration = data.get("duration")
+    mode = data.get("mode")
 
-    if cut_end is None or cut_end <= 0:
+    if end_time is None or end_time <= 0:
         await update.message.reply_text("Noto'g'ri vaqt! Misol: 90 yoki 1:30")
-        return WAITING_CUT_END
+        return WAITING_END_TIME
 
-    if cut_end <= cut_start:
+    if end_time <= start_time:
         await update.message.reply_text("Tugash vaqti boshlanishdan katta bo'lishi kerak!")
-        return WAITING_CUT_END
+        return WAITING_END_TIME
 
-    if duration and cut_end > duration:
-        cut_end = duration
+    if duration and end_time > duration:
+        end_time = duration
 
-    await update.message.reply_text(
-        "O'chiriladigan qism: %s --> %s\nVideo tayyorlanmoqda..." % (fmt(cut_start), fmt(cut_end))
-    )
+    await update.message.reply_text("Ishlanmoqda, iltimos kuting...")
 
     input_path = data.get("video_path")
-    part1_path = "downloads/%s_part1.mp4" % user_id
-    part2_path = "downloads/%s_part2.mp4" % user_id
-    list_path  = "downloads/%s_list.txt" % user_id
     output_path = "downloads/%s_output.mp4" % user_id
 
     try:
@@ -201,54 +224,79 @@ async def receive_cut_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("FFmpeg topilmadi! Server xatosi.")
             return ConversationHandler.END
 
-        # 1-qism: 0 dan cut_start gacha
-        has_part1 = cut_start > 0
-        # 2-qism: cut_end dan oxirigacha
-        has_part2 = (duration is None) or (cut_end < duration)
-
-        if has_part1:
-            r1 = subprocess.run([
-                ffmpeg, "-i", input_path,
-                "-ss", "0", "-to", str(cut_start),
+        if mode == "mode_trim":
+            # Qirqib olish — faqat start..end orasini oladi
+            cmd = [
+                ffmpeg,
+                "-i", input_path,
+                "-ss", str(start_time),
+                "-to", str(end_time),
                 "-c:v", "libx264", "-c:a", "aac",
-                "-preset", "fast", "-crf", "23", "-y", part1_path
-            ], capture_output=True, text=True, timeout=300)
-            if r1.returncode != 0:
-                logger.error("Part1 xato: %s", r1.stderr)
-                raise Exception("Part1 failed")
+                "-preset", "fast", "-crf", "23", "-y",
+                output_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            if result.returncode != 0:
+                logger.error("FFmpeg xato: %s", result.stderr)
+                raise Exception("trim failed")
 
-        if has_part2:
-            r2 = subprocess.run([
-                ffmpeg, "-i", input_path,
-                "-ss", str(cut_end),
-                "-c:v", "libx264", "-c:a", "aac",
-                "-preset", "fast", "-crf", "23", "-y", part2_path
-            ], capture_output=True, text=True, timeout=300)
-            if r2.returncode != 0:
-                logger.error("Part2 xato: %s", r2.stderr)
-                raise Exception("Part2 failed")
+            caption = "%s --> %s qismi olindi." % (fmt(start_time), fmt(end_time))
 
-        # Qismlarni birlashtirish
-        if has_part1 and has_part2:
-            with open(list_path, "w") as f:
-                f.write("file '%s'\n" % os.path.abspath(part1_path))
-                f.write("file '%s'\n" % os.path.abspath(part2_path))
-            r3 = subprocess.run([
-                ffmpeg, "-f", "concat", "-safe", "0",
-                "-i", list_path,
-                "-c", "copy", "-y", output_path
-            ], capture_output=True, text=True, timeout=300)
-            if r3.returncode != 0:
-                logger.error("Concat xato: %s", r3.stderr)
-                raise Exception("Concat failed")
-        elif has_part1:
-            os.rename(part1_path, output_path)
-        elif has_part2:
-            os.rename(part2_path, output_path)
         else:
-            await update.message.reply_text("Butun video o'chirildi, yuboradigan narsa qolmadi!")
-            return ConversationHandler.END
+            # O'chirib tashlash — start..end orasini o'chirib, ikki qismni birlashtiradi
+            part1_path = "downloads/%s_part1.mp4" % user_id
+            part2_path = "downloads/%s_part2.mp4" % user_id
+            list_path  = "downloads/%s_list.txt" % user_id
 
+            has_part1 = start_time > 0
+            has_part2 = (duration is None) or (end_time < duration)
+
+            if has_part1:
+                r1 = subprocess.run([
+                    ffmpeg, "-i", input_path,
+                    "-ss", "0", "-to", str(start_time),
+                    "-c:v", "libx264", "-c:a", "aac",
+                    "-preset", "fast", "-crf", "23", "-y", part1_path
+                ], capture_output=True, text=True, timeout=300)
+                if r1.returncode != 0:
+                    raise Exception("part1 failed")
+
+            if has_part2:
+                r2 = subprocess.run([
+                    ffmpeg, "-i", input_path,
+                    "-ss", str(end_time),
+                    "-c:v", "libx264", "-c:a", "aac",
+                    "-preset", "fast", "-crf", "23", "-y", part2_path
+                ], capture_output=True, text=True, timeout=300)
+                if r2.returncode != 0:
+                    raise Exception("part2 failed")
+
+            if has_part1 and has_part2:
+                with open(list_path, "w") as f:
+                    f.write("file '%s'\n" % os.path.abspath(part1_path))
+                    f.write("file '%s'\n" % os.path.abspath(part2_path))
+                r3 = subprocess.run([
+                    ffmpeg, "-f", "concat", "-safe", "0",
+                    "-i", list_path, "-c", "copy", "-y", output_path
+                ], capture_output=True, text=True, timeout=300)
+                if r3.returncode != 0:
+                    raise Exception("concat failed")
+            elif has_part1:
+                os.rename(part1_path, output_path)
+            elif has_part2:
+                os.rename(part2_path, output_path)
+            else:
+                await update.message.reply_text("Butun video o'chirildi, yuboradigan narsa qolmadi!")
+                return ConversationHandler.END
+
+            # Temp fayllarni tozalash
+            for p in [part1_path, part2_path, list_path]:
+                if os.path.exists(p):
+                    os.remove(p)
+
+            caption = "%s - %s oraligi o'chirildi." % (fmt(start_time), fmt(end_time))
+
+        # Natijani yuborish
         file_size = os.path.getsize(output_path)
         if file_size > 50 * 1024 * 1024:
             await update.message.reply_text("Natija 50MB dan katta, Telegram qabul qilmaydi.")
@@ -256,7 +304,7 @@ async def receive_cut_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with open(output_path, "rb") as vf:
                 await update.message.reply_video(
                     video=vf,
-                    caption="%s - %s oraligi o'chirildi." % (fmt(cut_start), fmt(cut_end)),
+                    caption=caption,
                     supports_streaming=True
                 )
 
@@ -266,13 +314,13 @@ async def receive_cut_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error("Xato: %s", e)
         await update.message.reply_text("Xato yuz berdi. Qayta urinib ko'ring.")
     finally:
-        for path in [input_path, part1_path, part2_path, list_path, output_path]:
+        for path in [input_path, output_path]:
             if path and os.path.exists(path):
                 os.remove(path)
         user_data_store.pop(user_id, None)
 
     keyboard = [[InlineKeyboardButton("Yangi video", callback_data="new_video")]]
-    await update.message.reply_text("Yana video yubormoqchimisiz?", reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.message.reply_text("Yana ishlashni xohlaysizmi?", reply_markup=InlineKeyboardMarkup(keyboard))
     return ConversationHandler.END
 
 
@@ -308,11 +356,14 @@ def main():
             WAITING_VIDEO: [
                 MessageHandler(filters.VIDEO | filters.Document.VIDEO, receive_video),
             ],
-            WAITING_CUT_START: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_cut_start),
+            WAITING_MODE: [
+                CallbackQueryHandler(mode_callback, pattern="^mode_"),
             ],
-            WAITING_CUT_END: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_cut_end),
+            WAITING_START_TIME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_start_time),
+            ],
+            WAITING_END_TIME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_end_time),
             ],
         },
         fallbacks=[
