@@ -39,31 +39,23 @@ logger.info("Token topildi.")
 
 
 def find_ffmpeg():
-    # 1. imageio-ffmpeg (Railway/server uchun, o'zi yuklab oladi)
-    try:
-        import imageio_ffmpeg
-        path = imageio_ffmpeg.get_ffmpeg_exe()
-        if path and os.path.isfile(path):
-            return path
-    except ImportError:
-        pass
-
-    # 2. PATH
+    # 1. PATH (Railway nixpacks ffmpeg o'rnatsa shu yerda topiladi)
     found = shutil.which("ffmpeg")
     if found:
         return found
 
-    # 3. Linux/Mac
+    # 2. Linux/Mac keng tarqalgan joylar
     for path in ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg",
-                 "/opt/homebrew/bin/ffmpeg", "/snap/bin/ffmpeg"]:
+                 "/opt/homebrew/bin/ffmpeg", "/snap/bin/ffmpeg",
+                 "/nix/var/nix/profiles/default/bin/ffmpeg"]:
         if os.path.isfile(path):
             return path
 
-    # 4. Windows
+    # 3. Windows keng tarqalgan joylar
     userprofile = os.environ.get("USERPROFILE", "")
     for path in [
-        r"C:\ffmpeg\bin\ffmpeg.exe",
-        r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+        "C:\\ffmpeg\\bin\\ffmpeg.exe",
+        "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
         os.path.join(userprofile, "ffmpeg", "bin", "ffmpeg.exe"),
     ]:
         if os.path.isfile(path):
