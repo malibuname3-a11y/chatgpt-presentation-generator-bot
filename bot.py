@@ -66,14 +66,9 @@ def find_ffmpeg():
 
 FFMPEG_PATH = find_ffmpeg()
 if not FFMPEG_PATH:
-    logger.error(
-        "FFmpeg topilmadi! "
-        "Railway uchun: requirements.txt ga 'imageio-ffmpeg' qo'shing. "
-        "Ubuntu: sudo apt install ffmpeg"
-    )
-    sys.exit(1)
-
-logger.info("FFmpeg topildi: %s", FFMPEG_PATH)
+    logger.warning("FFmpeg hali topilmadi, ishlatilganda qayta qidiriladi.")
+else:
+    logger.info("FFmpeg topildi: %s", FFMPEG_PATH)
 
 WAITING_VIDEO = 1
 WAITING_START_TIME = 2
@@ -190,8 +185,16 @@ async def receive_end_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     output_path = "downloads/%s_output.mp4" % user_id
 
     try:
+        # Har safar qayta topish (container ichida keyinroq o'rnatilgan bo'lishi mumkin)
+        ffmpeg = find_ffmpeg()
+        if not ffmpeg:
+            await update.message.reply_text(
+                "FFmpeg topilmadi! Server administratoriga murojaat qiling."
+            )
+            return ConversationHandler.END
+
         cmd = [
-            FFMPEG_PATH,          # <-- avtomatik topilgan yo'l
+            ffmpeg,
             "-i", input_path,
             "-ss", str(start_time),
             "-to", str(end_time),
